@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cinefy Admin</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- FIREBASE COMPAT SDK (Required for file:// usage) -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
+
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: { extend: { colors: { primary: '#2563eb', darkbg: '#0f172a' } } }
+        }
+    </script>
+    <style>
+        /* Glass & Utilities */
+        .glass { background: rgba(255, 255, 255, 0.65); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border: 1px solid rgba(255, 255, 255, 0.5); }
+        .dark .glass { background: rgba(15, 23, 42, 0.75); border: 1px solid rgba(255, 255, 255, 0.1); }
+        .loader { border: 3px solid #f3f3f3; border-top: 3px solid #2563eb; border-radius: 50%; width: 20px; height: 20px; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        
+        /* Layout */
+        @media (min-width: 768px) {
+            .app-layout { display: flex; height: 100vh; overflow: hidden; }
+            .sidebar { width: 260px; height: 100%; display: flex; flex-direction: column; z-index: 20; }
+            .main-content { flex: 1; overflow-y: auto; }
+        }
+        @media (max-width: 767px) {
+            .sidebar { position: fixed; bottom: 0; width: 100%; height: 70px; z-index: 50; display: flex; justify-content: space-around; align-items: center; }
+            .main-content { padding-bottom: 80px; min-height: 100vh; }
+            .nav-text { display: none; }
+        }
+    </style>
+</head>
+<body class="bg-gray-100 dark:bg-gray-900 text-gray-800 dark:text-gray-100 font-sans transition-colors duration-300">
+
+    <!-- INITIAL LOADING SCREEN -->
+    <div id="app-loader" class="fixed inset-0 z-[200] bg-gray-900 flex items-center justify-center">
+        <div class="text-center">
+            <div class="loader w-12 h-12 mx-auto mb-4 border-t-blue-500"></div>
+            <p class="text-white">Connecting...</p>
+        </div>
+    </div>
+
+    <!-- LOGIN SCREEN -->
+    <div id="auth-screen" class="hidden fixed inset-0 z-[100] flex items-center justify-center bg-gray-900 bg-[url('https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?q=80&w=2070')] bg-cover">
+        <div class="absolute inset-0 bg-black/70 backdrop-blur-sm"></div>
+        <div class="glass p-8 rounded-2xl w-full max-w-md mx-4 relative z-10">
+            <h2 class="text-3xl font-bold text-center mb-6 text-primary">Admin Access</h2>
+            <form id="admin-login-form" class="space-y-4">
+                <div>
+                    <input type="email" id="a-email" class="w-full p-3 rounded-lg bg-white/50 dark:bg-black/50 border border-gray-300 dark:border-gray-600 outline-none placeholder-gray-500" placeholder="admin@cinefy.com" required>
+                </div>
+                <div>
+                    <input type="password" id="a-pass" class="w-full p-3 rounded-lg bg-white/50 dark:bg-black/50 border border-gray-300 dark:border-gray-600 outline-none placeholder-gray-500" placeholder="Password" required>
+                </div>
+                <p id="login-error" class="text-red-500 text-sm hidden bg-red-100 dark:bg-red-900/30 p-2 rounded"></p>
+                <button type="submit" id="login-btn" class="w-full bg-primary text-white font-bold py-3 rounded-lg hover:bg-blue-600 flex justify-center items-center">
+                    <span id="btn-text">Login</span>
+                    <div id="btn-loader" class="loader ml-2 hidden border-t-white"></div>
+                </button>
+            </form>
+            <button onclick="handleGoogleLogin()" class="mt-4 w-full bg-white text-gray-900 font-bold py-3 rounded-lg hover:bg-gray-200 flex justify-center gap-2">
+                <i class="fab fa-google text-red-500"></i> Login with Google
+            </button>
+        </div>
+    </div>
+
+    <!-- MAIN APP -->
+    <div id="admin-app" class="app-layout hidden">
+        <nav class="sidebar glass border-r border-gray-200 dark:border-white/10">
+            <div class="hidden md:block p-6 mb-4 text-2xl font-bold text-primary"><i class="fas fa-shield-alt"></i> ADMIN</div>
+            <button onclick="router('dashboard')" class="p-4 md:px-6 hover:bg-black/5 dark:hover:bg-white/5 flex gap-3 items-center w-full text-left"><i class="fas fa-chart-pie text-xl"></i><span class="nav-text">Dashboard</span></button>
+            <button onclick="router('movies')" class="p-4 md:px-6 hover:bg-black/5 dark:hover:bg-white/5 flex gap-3 items-center w-full text-left"><i class="fas fa-video text-xl"></i><span class="nav-text">Movies</span></button>
+            <button onclick="router('categories')" class="p-4 md:px-6 hover:bg-black/5 dark:hover:bg-white/5 flex gap-3 items-center w-full text-left"><i class="fas fa-list text-xl"></i><span class="nav-text">Categories</span></button>
+            <button onclick="router('banners')" class="p-4 md:px-6 hover:bg-black/5 dark:hover:bg-white/5 flex gap-3 items-center w-full text-left"><i class="fas fa-images text-xl"></i><span class="nav-text">Banners</span></button>
+            <div class="hidden md:flex flex-col gap-2 mt-auto p-4 border-t border-gray-200 dark:border-white/10">
+                <button onclick="toggleTheme()" class="flex items-center gap-3 p-2 hover:text-primary"><i class="fas fa-adjust"></i> Theme</button>
+                <button onclick="confirmAction('Logout?', handleLogout)" class="flex items-center gap-3 p-2 text-red-500 hover:text-red-400"><i class="fas fa-sign-out-alt"></i> Logout</button>
+            </div>
+        </nav>
+
+        <main class="main-content p-6">
+            <div class="md:hidden flex justify-between items-center mb-6">
+                <div class="font-bold text-primary text-xl">Admin Panel</div>
+                <div class="flex gap-4">
+                    <button onclick="toggleTheme()"><i class="fas fa-adjust"></i></button>
+                    <button onclick="confirmAction('Logout?', handleLogout)" class="text-red-500"><i class="fas fa-sign-out-alt"></i></button>
+                </div>
+            </div>
+
+            <!-- Dashboard -->
+            <div id="view-dashboard" class="space-y-6">
+                <h2 class="text-3xl font-bold">Overview</h2>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div class="glass p-6 rounded-xl border-l-4 border-primary"><p>Total Movies</p><h3 class="text-4xl font-bold mt-2" id="stat-movies">0</h3></div>
+                    <div class="glass p-6 rounded-xl border-l-4 border-purple-500"><p>Categories</p><h3 class="text-4xl font-bold mt-2" id="stat-categories">0</h3></div>
+                    <div class="glass p-6 rounded-xl border-l-4 border-green-500"><p>Banners</p><h3 class="text-4xl font-bold mt-2" id="stat-banners">0</h3></div>
+                </div>
+            </div>
+
+            <!-- Movies -->
+            <div id="view-movies" class="hidden space-y-6">
+                <div class="flex justify-between items-center">
+                    <h2 class="text-3xl font-bold">Movies</h2>
+                    <button onclick="openMovieModal()" class="bg-primary text-white px-4 py-2 rounded-lg font-bold hover:bg-blue-600 shadow">Add Movie</button>
+                </div>
+                <div class="glass rounded-xl overflow-hidden shadow-lg"><table class="w-full text-left"><thead class="bg-black/5 dark:bg-white/5 text-xs uppercase opacity-70"><tr><th class="p-4">Poster</th><th class="p-4">Title</th><th class="p-4 hidden md:table-cell">Category</th><th class="p-4 text-right">Actions</th></tr></thead><tbody id="movie-tbody"></tbody></table></div>
+            </div>
+
+            <!-- Categories -->
+            <div id="view-categories" class="hidden space-y-6">
+                <h2 class="text-3xl font-bold">Categories</h2>
+                <div class="flex gap-2 max-w-md">
+                    <input type="text" id="new-cat-name" placeholder="Category Name" class="flex-1 p-3 rounded-lg border dark:bg-black/30 dark:border-gray-600 outline-none">
+                    <button onclick="addCategory()" class="bg-primary text-white px-6 rounded-lg font-bold">Add</button>
+                </div>
+                <div id="cat-list" class="grid grid-cols-2 md:grid-cols-4 gap-4"></div>
+            </div>
+
+            <!-- Banners -->
+            <div id="view-banners" class="hidden space-y-6">
+                <h2 class="text-3xl font-bold">Banners</h2>
+                <div class="border-2 border-dashed border-gray-400 dark:border-gray-600 rounded-xl p-8 text-center relative hover:bg-black/5 cursor-pointer">
+                    <input type="file" onchange="uploadBanner(this)" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer">
+                    <div class="opacity-70"><i class="fas fa-cloud-upload-alt text-4xl mb-2"></i><p>Click to Upload Banner</p></div>
+                    <div id="banner-loader" class="hidden absolute inset-0 bg-black/60 flex items-center justify-center rounded-xl"><div class="loader"></div></div>
+                </div>
+                <div id="banner-list" class="grid grid-cols-1 md:grid-cols-2 gap-6"></div>
+            </div>
+        </main>
+    </div>
+
+    <!-- MODALS -->
+    <div id="movie-modal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm hidden flex items-center justify-center p-4">
+        <div class="glass w-full max-w-2xl rounded-2xl p-6 max-h-[90vh] overflow-y-auto">
+            <h3 class="text-2xl font-bold mb-4" id="modal-title">Add Movie</h3>
+            <form id="movie-form" class="space-y-4">
+                <input type="hidden" id="edit-id">
+                <div class="grid md:grid-cols-2 gap-4">
+                    <input type="text" id="m-title" placeholder="Title" class="w-full p-3 rounded-lg bg-white/50 dark:bg-black/30 border dark:border-gray-600 outline-none" required>
+                    <input type="number" id="m-year" placeholder="Year" class="w-full p-3 rounded-lg bg-white/50 dark:bg-black/30 border dark:border-gray-600 outline-none">
+                </div>
+                <div class="flex gap-2">
+                    <input type="url" id="m-poster" placeholder="Poster URL (or upload)" class="flex-1 p-3 rounded-lg bg-white/50 dark:bg-black/30 border dark:border-gray-600 outline-none" required>
+                    <label class="p-3 bg-gray-200 dark:bg-gray-700 rounded-lg cursor-pointer hover:bg-gray-300 relative"><i class="fas fa-camera"></i><input type="file" class="hidden" onchange="uploadPoster(this)"><div id="poster-loader" class="hidden absolute inset-0 bg-black/60 flex items-center justify-center rounded-lg"><div class="loader"></div></div></label>
+                </div>
+                <img id="poster-preview" class="h-24 hidden rounded object-cover">
+                <input type="url" id="m-watch" placeholder="YouTube URL (Regular, Shorts, or Embed)" class="w-full p-3 rounded-lg bg-white/50 dark:bg-black/30 border dark:border-gray-600 outline-none" required>
+                <div class="grid md:grid-cols-2 gap-4">
+                    <select id="m-cat" class="w-full p-3 rounded-lg bg-white/50 dark:bg-black/30 border dark:border-gray-600 outline-none"></select>
+                    <input type="number" step="0.1" id="m-rating" placeholder="Rating (0-10)" class="w-full p-3 rounded-lg bg-white/50 dark:bg-black/30 border dark:border-gray-600 outline-none">
+                </div>
+                <input type="text" id="m-cast" placeholder="Cast (comma separated)" class="w-full p-3 rounded-lg bg-white/50 dark:bg-black/30 border dark:border-gray-600 outline-none">
+                <textarea id="m-desc" placeholder="Description" rows="3" class="w-full p-3 rounded-lg bg-white/50 dark:bg-black/30 border dark:border-gray-600 outline-none"></textarea>
+                <div class="flex justify-end gap-3 pt-2">
+                    <button type="button" onclick="document.getElementById('movie-modal').classList.add('hidden')" class="px-4 py-2 hover:bg-white/10 rounded-lg">Cancel</button>
+                    <button type="submit" class="bg-primary text-white px-6 py-2 rounded-lg font-bold hover:bg-blue-600">Save</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="confirm-modal" class="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm hidden">
+        <div class="glass w-80 p-6 rounded-xl text-center">
+            <h3 class="text-xl font-bold mb-4 text-primary">Confirm</h3>
+            <p id="confirm-msg" class="mb-6 opacity-80">Are you sure?</p>
+            <div class="flex gap-3 justify-center">
+                <button onclick="document.getElementById('confirm-modal').classList.add('hidden')" class="px-4 py-2 bg-gray-500 text-white rounded-lg">No</button>
+                <button id="confirm-yes-btn" class="px-4 py-2 bg-red-500 text-white rounded-lg">Yes</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const firebaseConfig = {
+            apiKey: "AIzaSyAXrt33MHl8kiGzjPNQq1XX9DtKjRCGYSg",
+            authDomain: "movie-app-2-6a2b1.firebaseapp.com",
+            databaseURL: "https://movie-app-2-6a2b1-default-rtdb.firebaseio.com",
+            projectId: "movie-app-2-6a2b1",
+            storageBucket: "movie-app-2-6a2b1.firebasestorage.app",
+            messagingSenderId: "997234234022",
+            appId: "1:997234234022:web:050676d16416a99d99da67"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+        const db = firebase.database();
+        const IMGBB_KEY = "1cb604d14d4b709e886aa0bd59ddc097";
+        const ADMIN_EMAIL = "thepremanshu@gmail.com";
+        let confirmCb = null;
+
+        // PERSISTENCE SETUP
+        auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
+
+        // GLOBAL HELPERS
+        window.router = (v) => { ['dashboard','movies','categories','banners'].forEach(x=>document.getElementById('view-'+x).classList.add('hidden')); document.getElementById('view-'+v).classList.remove('hidden'); }
+        window.toggleTheme = () => { document.documentElement.classList.toggle('dark'); localStorage.theme = document.documentElement.classList.contains('dark') ? 'dark' : 'light'; }
+        window.confirmAction = (msg, cb) => { document.getElementById('confirm-msg').innerText = msg; confirmCb = cb; document.getElementById('confirm-modal').classList.remove('hidden'); }
+        document.getElementById('confirm-yes-btn').onclick = () => { if(confirmCb) confirmCb(); document.getElementById('confirm-modal').classList.add('hidden'); }
+
+        // AUTH & INIT
+        auth.onAuthStateChanged(user => {
+            // Hide Initial Loader
+            document.getElementById('app-loader').classList.add('hidden');
+            
+            if(user && user.email === ADMIN_EMAIL) {
+                // Logged In & Admin
+                document.getElementById('auth-screen').classList.add('hidden');
+                document.getElementById('admin-app').classList.remove('hidden');
+                loadData();
+            } else {
+                // Not Logged In OR Not Admin
+                if(user) auth.signOut();
+                document.getElementById('auth-screen').classList.remove('hidden');
+                document.getElementById('admin-app').classList.add('hidden');
+            }
+        });
+
+        document.getElementById('admin-login-form').addEventListener('submit', e => {
+            e.preventDefault();
+            const btn = document.getElementById('login-btn');
+            const text = document.getElementById('btn-text');
+            const loader = document.getElementById('btn-loader');
+            const errBox = document.getElementById('login-error');
+            
+            // UI Loading State
+            btn.disabled = true;
+            text.innerText = "Checking...";
+            loader.classList.remove('hidden');
+            errBox.classList.add('hidden');
+
+            const email = document.getElementById('a-email').value;
+            const pass = document.getElementById('a-pass').value;
+
+            auth.signInWithEmailAndPassword(email, pass)
+                .then(() => {
+                    // Success handled by onAuthStateChanged
+                })
+                .catch(err => {
+                    // Check if we need to auto-create
+                    if((err.code === 'auth/user-not-found' || err.code === 'auth/invalid-credential') && email === ADMIN_EMAIL) {
+                        auth.createUserWithEmailAndPassword(email, pass)
+                            .then(() => alert("Admin Account Created!"))
+                            .catch(e2 => {
+                                errBox.innerText = e2.message;
+                                errBox.classList.remove('hidden');
+                                resetLoginBtn();
+                            });
+                    } else {
+                        errBox.innerText = err.message;
+                        errBox.classList.remove('hidden');
+                        resetLoginBtn();
+                    }
+                });
+        });
+
+        function resetLoginBtn() {
+            const btn = document.getElementById('login-btn');
+            const text = document.getElementById('btn-text');
+            const loader = document.getElementById('btn-loader');
+            btn.disabled = false;
+            text.innerText = "Login";
+            loader.classList.add('hidden');
+        }
+
+        window.handleGoogleLogin = () => auth.signInWithPopup(new firebase.auth.GoogleAuthProvider()).catch(e=>alert(e.message));
+        window.handleLogout = () => auth.signOut();
+
+        // DATA LOGIC
+        function loadData() {
+            // Movies
+            db.ref('movies').on('value', snap => {
+                const b = document.getElementById('movie-tbody'); b.innerHTML='';
+                let count = 0;
+                snap.forEach(c => {
+                    count++; let m = c.val();
+                    b.innerHTML += `<tr class="border-t border-white/10 hover:bg-white/5"><td class="p-4"><img src="${m.poster}" class="w-8 h-12 object-cover rounded"></td><td class="p-4 font-bold">${m.title}</td><td class="p-4 hidden md:table-cell">${m.category}</td><td class="p-4 text-right"><button onclick="editMovie('${c.key}')" class="text-blue-500 mr-3"><i class="fas fa-edit"></i></button><button onclick="confirmAction('Delete?', ()=>db.ref('movies/${c.key}').remove())" class="text-red-500"><i class="fas fa-trash"></i></button></td></tr>`;
+                });
+                document.getElementById('stat-movies').innerText = count;
+            });
+            // Categories
+            db.ref('categories').on('value', snap => {
+                const l = document.getElementById('cat-list'); l.innerHTML='';
+                const s = document.getElementById('m-cat'); s.innerHTML='<option value="">Select Category</option>';
+                let count = 0;
+                snap.forEach(c => {
+                    count++;
+                    l.innerHTML += `<div class="glass p-4 rounded flex justify-between"><b>${c.val().name}</b><button onclick="confirmAction('Delete?', ()=>db.ref('categories/${c.key}').remove())" class="text-red-500"><i class="fas fa-times"></i></button></div>`;
+                    s.innerHTML += `<option value="${c.val().name}">${c.val().name}</option>`;
+                });
+                document.getElementById('stat-categories').innerText = count;
+            });
+            // Banners
+            db.ref('banners').on('value', snap => {
+                const l = document.getElementById('banner-list'); l.innerHTML='';
+                let count = 0;
+                snap.forEach(c => {
+                    count++;
+                    l.innerHTML += `<div class="relative group h-40 rounded-xl overflow-hidden border border-white/10"><img src="${c.val().url}" class="w-full h-full object-cover"><button onclick="confirmAction('Delete?', ()=>db.ref('banners/${c.key}').remove())" class="absolute top-2 right-2 bg-red-600 text-white p-2 rounded-full hidden group-hover:block"><i class="fas fa-trash"></i></button></div>`;
+                });
+                document.getElementById('stat-banners').innerText = count;
+            });
+        }
+
+        window.addCategory = () => {
+            const n = document.getElementById('new-cat-name').value;
+            if(n) { db.ref('categories').push({name:n}); document.getElementById('new-cat-name').value = ''; }
+        };
+
+        // Uploads
+        async function upload(file) {
+            try {
+                let fd = new FormData(); fd.append('image', file);
+                let res = await fetch(`https://api.imgbb.com/1/upload?key=${IMGBB_KEY}`, { method:'POST', body:fd });
+                let d = await res.json();
+                return d.success ? d.data.url : null;
+            } catch(e) { alert("Upload Failed"); return null; }
+        }
+        window.uploadPoster = async (i) => {
+            if(i.files[0]) {
+                document.getElementById('poster-loader').classList.remove('hidden');
+                let url = await upload(i.files[0]);
+                document.getElementById('poster-loader').classList.add('hidden');
+                if(url) { document.getElementById('m-poster').value = url; document.getElementById('poster-preview').src = url; document.getElementById('poster-preview').classList.remove('hidden'); }
+            }
+        };
+        window.uploadBanner = async (i) => {
+            if(i.files[0]) {
+                document.getElementById('banner-loader').classList.remove('hidden');
+                let url = await upload(i.files[0]);
+                document.getElementById('banner-loader').classList.add('hidden');
+                if(url) db.ref('banners').push({url});
+            }
+        };
+
+        // Movie Forms
+        window.openMovieModal = () => { document.getElementById('movie-form').reset(); document.getElementById('edit-id').value=''; document.getElementById('modal-title').innerText="Add Movie"; document.getElementById('poster-preview').classList.add('hidden'); document.getElementById('movie-modal').classList.remove('hidden'); }
+        window.editMovie = (id) => {
+            db.ref('movies/'+id).once('value').then(s => {
+                let m = s.val();
+                document.getElementById('edit-id').value = id;
+                document.getElementById('m-title').value = m.title;
+                document.getElementById('m-year').value = m.year;
+                document.getElementById('m-poster').value = m.poster;
+                document.getElementById('poster-preview').src = m.poster;
+                document.getElementById('poster-preview').classList.remove('hidden');
+                document.getElementById('m-watch').value = m.watchUrl;
+                document.getElementById('m-cat').value = m.category;
+                document.getElementById('m-rating').value = m.rating;
+                document.getElementById('m-cast').value = m.cast;
+                document.getElementById('m-desc').value = m.description;
+                document.getElementById('modal-title').innerText="Edit Movie";
+                document.getElementById('movie-modal').classList.remove('hidden');
+            });
+        };
+        document.getElementById('movie-form').addEventListener('submit', e => {
+            e.preventDefault();
+            let id = document.getElementById('edit-id').value;
+            let d = {
+                title: document.getElementById('m-title').value,
+                year: document.getElementById('m-year').value,
+                poster: document.getElementById('m-poster').value,
+                watchUrl: document.getElementById('m-watch').value,
+                category: document.getElementById('m-cat').value,
+                rating: document.getElementById('m-rating').value,
+                cast: document.getElementById('m-cast').value,
+                description: document.getElementById('m-desc').value
+            };
+            if(id) db.ref('movies/'+id).update(d); else db.ref('movies').push(d);
+            document.getElementById('movie-modal').classList.add('hidden');
+        });
+
+        if(localStorage.theme === 'light') document.documentElement.classList.remove('dark');
+    </script>
+</body>
+</html>
